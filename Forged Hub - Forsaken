@@ -38,18 +38,328 @@ local VisualTab = Window:CreateTab("Visual", "monitor-smartphone")
 local WelcomeLabel = WelcomeTab:CreateLabel("Welcome to Forged Hub!\nCurrent version: v1.0.0", "info")
 
 -- ESP TAB
+-- SERVICES
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+-- PLAYER
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- STORAGE
+local ESPObjects = {}
+local ESPEnabled = {}
+
+-- SETTINGS
+local ESPSettings = {
+    RefreshRate = 0.1,
+    DisplayName = true,
+    DisplayHealth = true,
+    DisplayGeneratorProgress = true,
+    DisplayDistance = true,
+}
+
+local ESPHeartbeatConnection
+
+--------------------------------------------------
+-- UTILITIES
+--------------------------------------------------
+
+local function GetDistance(Part)
+    if not Part then return 0 end
+    return math.floor((Camera.CFrame.Position - Part.Position).Magnitude)
+end
+
+local function ClearESP(Key)
+    if ESPObjects[Key] then
+        for _, Object in pairs(ESPObjects[Key]) do
+            if Object and Object.Parent then
+                Object:Destroy()
+            end
+        end
+        ESPObjects[Key] = nil
+    end
+end
+
+local function CreateHighlight(Parent, Color)
+    local HighlightInstance = Instance.new("Highlight")
+    HighlightInstance.FillColor = Color
+    HighlightInstance.OutlineColor = Color
+    HighlightInstance.FillTransparency = 0.6
+    HighlightInstance.OutlineTransparency = 0
+    HighlightInstance.Parent = Parent
+    return HighlightInstance
+end
+
+local function CreateBillboard(Parent)
+    local Billboard = Instance.new("BillboardGui")
+    Billboard.Size = UDim2.fromScale(0, 0)
+    Billboard.AlwaysOnTop = true
+    Billboard.StudsOffset = Vector3.new(0, 3, 0)
+    Billboard.Parent = Parent
+
+    local TextLabel = Instance.new("TextLabel")
+    TextLabel.Size = UDim2.fromScale(1, 1)
+    TextLabel.BackgroundTransparency = 1
+    TextLabel.TextColor3 = Color3.new(1, 1, 1)
+    TextLabel.TextStrokeTransparency = 0
+    TextLabel.TextScaled = true
+    TextLabel.Font = Enum.Font.SourceSansBold
+    TextLabel.Parent = Billboard
+
+    return Billboard, TextLabel
+end
+
+--------------------------------------------------
+-- ESP LOOP
+--------------------------------------------------
+
+local function StartESPLoop()
+    if ESPHeartbeatConnection then return end
+
+    ESPHeartbeatConnection = RunService.Heartbeat:Connect(function()
+        task.wait(ESPSettings.RefreshRate)
+        for _, Update in pairs(ESPEnabled) do
+            Update()
+        end
+    end)
+end
+
+local ESPCommands = {}
+
+--------------------------------------------------
+-- KILLER / SURVIVOR SHARED
+--------------------------------------------------
+
+local function CharacterESP(Folder, Key, Color)
+    ClearESP(Key)
+    ESPObjects[Key] = {}
+
+    for _, Model in pairs(Folder:GetChildren()) do
+        if Model:GetAttribute("Username") ~= LocalPlayer.Name then
+            local Root = Model:FindFirstChild("HumanoidRootPart")
+            local Humanoid = Model:FindFirstChildOfClass("Humanoid")
+            if Root and Humanoid then
+                local Highlight = CreateHighlight(Model, Color)
+                local Billboard, Label = CreateBillboard(Root)
+
+                Label.Text = ""
+                if ESPSettings.DisplayName then
+                    Label.Text ..= Model.Name .. " (" .. Model:GetAttribute("Username") .. ")\n"
+                end
+                if ESPSettings.DisplayHealth then
+                    Label.Text ..= "Health: " .. math.floor(Humanoid.Health) .. "/" .. Humanoid.MaxHealth .. "\n"
+                end
+                if ESPSettings.DisplayDistance then
+                    Label.Text ..= GetDistance(Root) .. " studs away"
+                end
+
+                table.insert(ESPObjects[Key], Highlight)
+                table.insert(ESPObjects[Key], Billboard)
+            end
+        end
+    end
+end
+
+function ESPCommands.KillerESP(Value)
+    if not Value then ClearESP("KillerESP") return end
+    CharacterESP(workspace.Players.Killers, "KillerESP", Color3.fromRGB(255,255,255))
+end
+
+function ESPCommands.SurvivorESP(Value)
+    if not Value then ClearESP("SurvivorESP") return end
+    CharacterESP(workspace.Players.Survivors, "SurvivorESP", Color3.fromRGB(0,85,127))
+end
+
+--------------------------------------------------
+-- GENERATOR ESP
+--------------------------------------------------
+
+function ESPCommands.GeneratorESP(Value)
+    ClearESP("GeneratorESP")
+    if not Value then return end
+
+    ESPObjects.GeneratorESP = {}
+
+    for _, Model in pairs(workspace.Map.Ingame.Map:GetDescendants()) do
+        if Model:IsA("Model") and (Model.Name == "Generator" or Model.Name == "FakeGenerator") then
+            local Root = Model.PrimaryPart or Model:FindFirstChildWhichIsA("BasePart")
+            local Progress = Model:FindFirstChild("Progress")
+
+            if Root then
+                local Color =
+                    Model.Name == "FakeGenerator" and Color3.fromRGB(85,0,127)
+                    or (Progress and Progress.Value >= 100 and Color3.fromRGB(85,255,0))
+                    or Color3.fromRGB(0,85,127)
+
+                local Highlight = CreateHighlight(Model, Color)
+                local Billboard, Label = CreateBillboard(Root)
+
+                Label.Text = Model.Name
+                if ESPSettings.DisplayGeneratorProgress and Progress then
+                    Label.Text ..= "\nProgress: " .. math.floor(Progress.Value) .. "%"
+                end
+                if ESPSettings.DisplayDistance then
+                    Label.Text ..= "\n" .. GetDistance(Root) .. " studs away"
+                end
+
+                table.insert(ESPObjects.GeneratorESP, Highlight)
+                table.insert(ESPObjects.GeneratorESP, Billboard)
+            end
+        end
+    end
+end
+
+--------------------------------------------------
+-- ITEM ESP
+--------------------------------------------------
+
+function ESPCommands.ItemESP(Value)
+    ClearESP("ItemESP")
+    if not Value then return end
+
+    ESPObjects.ItemESP = {}
+
+    for _, Tool in pairs(workspace.Map.Ingame.Map:GetDescendants()) do
+        if Tool:IsA("Tool") then
+            local Handle = Tool:FindFirstChildWhichIsA("BasePart")
+            if Handle then
+                local Highlight = CreateHighlight(Tool, Color3.fromRGB(255,255,255))
+                local Billboard, Label = CreateBillboard(Handle)
+
+                Label.Text = Tool.Name
+                if ESPSettings.DisplayDistance then
+                    Label.Text ..= "\n" .. GetDistance(Handle) .. " studs away"
+                end
+
+                table.insert(ESPObjects.ItemESP, Highlight)
+                table.insert(ESPObjects.ItemESP, Billboard)
+            end
+        end
+    end
+end
+
+--------------------------------------------------
+-- SIMPLE HIGHLIGHT ESP
+--------------------------------------------------
+
+local function SimpleHighlightESP(Value, Key, Names, Color)
+    ClearESP(Key)
+    if not Value then return end
+
+    ESPObjects[Key] = {}
+
+    for _, Model in pairs(workspace.Map.Ingame:GetDescendants()) do
+        if Model:IsA("Model") then
+            for _, Name in pairs(Names) do
+                if string.find(Model.Name, Name) then
+                    table.insert(ESPObjects[Key], CreateHighlight(Model, Color))
+                end
+            end
+        end
+    end
+end
+
+function ESPCommands.BuildermanBuilds(Value)
+    SimpleHighlightESP(Value, "BuildermanBuilds", {"BuildermanSentry","BuildermanDispenser"}, Color3.fromRGB(255,255,0))
+end
+
+function ESPCommands.TaphTrapsESP(Value)
+    SimpleHighlightESP(Value, "TaphTrapsESP", {"SubspaceTripmine","TaphTripwire"}, Color3.fromRGB(255,0,255))
+end
+
+--------------------------------------------------
+-- MINIONS + BILLBOARD
+--------------------------------------------------
+
+local function MinionESP(Value, Key, NameMatch, Color, LabelText)
+    ClearESP(Key)
+    if not Value then return end
+
+    ESPObjects[Key] = {}
+
+    for _, Model in pairs(workspace.Map.Ingame:GetDescendants()) do
+        if Model:IsA("Model") and string.find(Model.Name, NameMatch) then
+            local Root = Model.PrimaryPart or Model:FindFirstChildWhichIsA("BasePart")
+            if Root then
+                local Highlight = CreateHighlight(Model, Color)
+                local Billboard, Label = CreateBillboard(Root)
+
+                Label.Text = LabelText
+                if ESPSettings.DisplayDistance then
+                    Label.Text ..= "\n" .. GetDistance(Root) .. " studs away"
+                end
+
+                table.insert(ESPObjects[Key], Highlight)
+                table.insert(ESPObjects[Key], Billboard)
+            end
+        end
+    end
+end
+
+function ESPCommands.OneXMinionESP(Value)
+    MinionESP(Value, "1xMinion", "Zombie", Color3.fromRGB(0,170,0), "1x1x1x1 Minion")
+end
+
+function ESPCommands.C00lKiddMinionESP(Value)
+    MinionESP(Value, "c00lkiddMinion", "PizzaDeliveryRig", Color3.fromRGB(255,85,0), "c00lkidd Minion")
+end
+
+--------------------------------------------------
+-- BILLBOARD ONLY
+--------------------------------------------------
+
+local function BillboardOnlyESP(Value, Key, NameMatch, LabelText)
+    ClearESP(Key)
+    if not Value then return end
+
+    ESPObjects[Key] = {}
+
+    for _, Model in pairs(workspace.Map.Ingame:GetDescendants()) do
+        if Model:IsA("Model") and string.find(Model.Name, NameMatch) then
+            local Root = Model.PrimaryPart or Model:FindFirstChildWhichIsA("BasePart")
+            if Root then
+                local Billboard, Label = CreateBillboard(Root)
+                Label.Text = LabelText .. "\n" .. GetDistance(Root) .. " studs away"
+                table.insert(ESPObjects[Key], Billboard)
+            end
+        end
+    end
+end
+
+function ESPCommands.VeeronicaGraffitiESP(Value)
+    BillboardOnlyESP(Value, "VeeronicaGraffiti", "Spray", "Graffiti")
+end
+
+function ESPCommands.JohnDoeDigitalFootprintESP(Value)
+    BillboardOnlyESP(Value, "JohnDoeFootprint", "Shadow", "John Doe Digital Footprint")
+end
+
+--------------------------------------------------
+-- SETTINGS
+--------------------------------------------------
+
+function ESPCommands.SetRefreshRate(Value) ESPSettings.RefreshRate = Value end
+function ESPCommands.SetDisplayName(Value) ESPSettings.DisplayName = Value end
+function ESPCommands.SetDisplayHealth(Value) ESPSettings.DisplayHealth = Value end
+function ESPCommands.SetDisplayGeneratorProgress(Value) ESPSettings.DisplayGeneratorProgress = Value end
+function ESPCommands.SetDisplayDistance(Value) ESPSettings.DisplayDistance = Value end
+
+
+-- ESP TAB
 local MainESPSection = ESPTab:CreateSection("Main ESP")
 
 local KillerESPToggle = ESPTab:CreateToggle({
    Name = "Killer ESP",
    CurrentValue = false,
    Flag = "KillerESP",
-   Callback = function(value)
-   -- Function: Adds an highlight and a billboard instance inside all models in the "Killers" folder which is located in the Workspace.Players.Killers.
-   -- Highlight Properties: Fill and Outline color - 255, 255, 255 | Fill Transparency - 0.6 | Outline Transparency - 0
-   -- Billboard properties (TextLabel above the model): Display - (Model name) ((Attribute value of "Username" of the model)) | Health: (Current health)/(Max health) | (Distance) studs away
-   -- It will only apply the highlight and billboard if the attribute value of "Username" of the model is not the user's roblox username.
-   -- Put function code here
+   Callback = function(Value)
+      ESPEnabled.KillerESP = Value and function()
+         ESPCommands.KillerESP(true)
+      end or nil
+
+      ESPCommands.KillerESP(Value)
+      StartESPLoop()
    end,
 })
 
@@ -57,12 +367,13 @@ local SurvivorESPToggle = ESPTab:CreateToggle({
    Name = "Survivor ESP",
    CurrentValue = false,
    Flag = "SurvivorESP",
-   Callback = function(value)
-   -- Function: Adds an highlight and a billboard instance inside all models in the "Survivors" folder which is located in the Workspace.Players.Survivors.
-   -- Highlight Properties: Fill and Outline color - 0, 85, 127 | Fill Transparency - 0.6 | Outline Transparency - 0
-   -- Billboard properties (TextLabel above the model): Display - (Model name) ((Attribute value of "Username" of the model)) | Health: (Current health)/(Max health) | (Distance) studs away
-   -- It will only apply the highlight and billboard if the attribute value of "Username" of the model is not the user's roblox username.
-   -- Put function code here
+   Callback = function(Value)
+      ESPEnabled.SurvivorESP = Value and function()
+         ESPCommands.SurvivorESP(true)
+      end or nil
+
+      ESPCommands.SurvivorESP(Value)
+      StartESPLoop()
    end,
 })
 
@@ -70,11 +381,13 @@ local GeneratorESPToggle = ESPTab:CreateToggle({
    Name = "Generator ESP",
    CurrentValue = false,
    Flag = "GeneratorESP",
-   Callback = function(value)
-   -- Function: Adds an highlight and a billboard instance inside all models that are named "Generator" and "FakeGenerator" in the "Map" model which is located in the Workspace.Map.Ingame.Map. You may realize there are two "Map"s, the first one is the folder and the second one is the model.
-   -- Highlight Properties: Fill and Outline color - 0, 85, 127 (For Generator when the number value of "Progress" inside the model is below 100), 85, 255, 0 (For Generator when the number value of "Progress" inside the model is 100), 85, 0, 127 (For FakeGenerator) | Fill Transparency - 0.6 | Outline Transparency - 0
-   -- Billboard properties (TextLabel above the model): Display - (Model name) | Progress: (Number value of Progress inside the model)% | (Distance) studs away
-   -- Put function code here
+   Callback = function(Value)
+      ESPEnabled.GeneratorESP = Value and function()
+         ESPCommands.GeneratorESP(true)
+      end or nil
+
+      ESPCommands.GeneratorESP(Value)
+      StartESPLoop()
    end,
 })
 
@@ -82,13 +395,17 @@ local ItemESPToggle = ESPTab:CreateToggle({
    Name = "Item ESP",
    CurrentValue = false,
    Flag = "ItemESP",
-   Callback = function(value)
-   -- Function: Adds an highlight and a billboard instance inside all Tools in the "Map" model which is located in Workspace.Map.Ingame.Map. You may realize there are two "Map"s, the first one is the folder and the second one is the model.
-   -- Highlight Properties: Fill and Outline color - 255, 255, 255 | Fill Transparency - 0.6 | Outline Transparency - 0
-   -- Billboard properties (TextLabel above the model): Display - (Model name) | (Distance) studs away
-   -- Put function code here
+   Callback = function(Value)
+      ESPEnabled.ItemESP = Value and function()
+         ESPCommands.ItemESP(true)
+      end or nil
+
+      ESPCommands.ItemESP(Value)
+      StartESPLoop()
    end,
 })
+
+--------------------------------------------------
 
 local OtherESPSection = ESPTab:CreateSection("Other ESP")
 
@@ -96,12 +413,13 @@ local BuildermanBuildsESPToggle = ESPTab:CreateToggle({
    Name = "Builderman Builds",
    CurrentValue = false,
    Flag = "BuildermanBuilds",
-   Callback = function(value)
-   -- Function: Adds an highlight instance inside all models that are named "BuildermanSentry" and "BuildermanDispenser" in the "Ingame" folder which is located in the Workspace.Map.Ingame.
-   -- Highlight Properties: Fill and Outline color - 255, 255, 0 | Fill Transparency - 0.6 | Outline Transparency - 0
-   -- No billboard
-   -- Highlight will only apply when there is a model in the Killers folder that has the Roblox username in their attribute value called "Username"
-   -- Put function code here
+   Callback = function(Value)
+      ESPEnabled.BuildermanBuilds = Value and function()
+         ESPCommands.BuildermanBuilds(true)
+      end or nil
+
+      ESPCommands.BuildermanBuilds(Value)
+      StartESPLoop()
    end,
 })
 
@@ -109,12 +427,13 @@ local TaphTrapsESPToggle = ESPTab:CreateToggle({
    Name = "Taph Traps ESP",
    CurrentValue = false,
    Flag = "TaphTrapsESP",
-   Callback = function(value)
-   -- Function: Adds an highlight instance inside all models that are named "SubspaceTripmine" and "TaphTripwire" (It will still find models that has "TaphTripwire" on their names. Example: ExampleTaphTripwire) in the "Ingame" folder which is located in the Workspace.Map.Ingame.
-   -- Highlight Properties: Fill and Outline color - 255, 0, 255 | Fill Transparency - 0.6 | Outline Transparency - 0
-   -- No billboard
-   -- Highlight will only apply when there is a model in the Killers folder that has the Roblox username in their attribute value called "Username"
-   -- Put function code here
+   Callback = function(Value)
+      ESPEnabled.TaphTrapsESP = Value and function()
+         ESPCommands.TaphTrapsESP(true)
+      end or nil
+
+      ESPCommands.TaphTrapsESP(Value)
+      StartESPLoop()
    end,
 })
 
@@ -122,12 +441,13 @@ local OnexOnexOnexOneMinionESPToggle = ESPTab:CreateToggle({
    Name = "1x1x1x1 Minion ESP",
    CurrentValue = false,
    Flag = "1x1x1x1MinionESP",
-   Callback = function(value)
-   -- Function: Adds an highlight and a billboard instance inside all models that are named "Zombie" in the "Ingame" folder which is located in the Workspace.Map.Ingame.
-   -- Highlight Properties: Fill and Outline color - 0, 170, 0 | Fill Transparency - 0.6 | Outline Transparency - 0
-   -- Billboard properties (TextLabel above the model): Display - 1x1x1x1 Minion | (Distance) studs away
-   -- Highlight will only apply when there is a model in the Survivors folder that has the Roblox username in their attribute value called "Username"
-   -- Put function code here
+   Callback = function(Value)
+      ESPEnabled.OneXMinionESP = Value and function()
+         ESPCommands.OneXMinionESP(true)
+      end or nil
+
+      ESPCommands.OneXMinionESP(Value)
+      StartESPLoop()
    end,
 })
 
@@ -135,12 +455,13 @@ local c00lkiddMinionESPToggle = ESPTab:CreateToggle({
    Name = "c00lkidd Minion ESP",
    CurrentValue = false,
    Flag = "c00lkiddMinionESP",
-   Callback = function(value)
-   -- Function: Adds an highlight and a billboard instance inside all models that are named "PizzaDeliveryRig" in the "Ingame" folder which is located in the Workspace.Map.Ingame.
-   -- Highlight Properties: Fill and Outline color - 255, 85, 0 | Fill Transparency - 0.6 | Outline Transparency - 0
-   -- Billboard properties (TextLabel above the model): Display - c00lkidd minion | (Distance) studs away
-   -- Highlight will only apply when there is a model in the Survivors folder that has the Roblox username in their attribute value called "Username"
-   -- Put function code here
+   Callback = function(Value)
+      ESPEnabled.C00lKiddMinionESP = Value and function()
+         ESPCommands.C00lKiddMinionESP(true)
+      end or nil
+
+      ESPCommands.C00lKiddMinionESP(Value)
+      StartESPLoop()
    end,
 })
 
@@ -148,11 +469,13 @@ local VeeronicaGraffitiESPToggle = ESPTab:CreateToggle({
    Name = "Veeronica Graffiti ESP",
    CurrentValue = false,
    Flag = "VeeronicaGraffitiESP",
-   Callback = function(value)
-   -- Function: Adds an billboard instance inside all models that are named "Spray" (It will still find models that has "Spray" on their names. Example: ExampleSpray) in the "Ingame" folder which is located in the Workspace.Map.Ingame.
-   -- No highlight
-   -- Billboard properties (TextLabel above the model): Display - Graffiti | (Distance) studs away
-   -- Put function code here
+   Callback = function(Value)
+      ESPEnabled.VeeronicaGraffitiESP = Value and function()
+         ESPCommands.VeeronicaGraffitiESP(true)
+      end or nil
+
+      ESPCommands.VeeronicaGraffitiESP(Value)
+      StartESPLoop()
    end,
 })
 
@@ -160,13 +483,17 @@ local JohnDoeDigitalFootprintESPToggle = ESPTab:CreateToggle({
    Name = "John Doe Digital Footprint ESP",
    CurrentValue = false,
    Flag = "JohnDoeDigitalFootprintESP",
-   Callback = function(value)
-   -- Function: Adds an billboard instance inside all models that are named "Shadow" in the "Shadows" (It will still find models that has "Shadows" on their names. Example: ExampleShadows. Also, there may be multiple folders with "Shadows" in their name!) folder which is located in the Workspace.Map.Ingame.Shadows
-   -- No highlight
-   -- Billboard properties (TextLabel above the model): Display - John Doe Digital Footprint | (Distance) studs away
-   -- Put function code here
+   Callback = function(Value)
+      ESPEnabled.JohnDoeDigitalFootprintESP = Value and function()
+         ESPCommands.JohnDoeDigitalFootprintESP(true)
+      end or nil
+
+      ESPCommands.JohnDoeDigitalFootprintESP(Value)
+      StartESPLoop()
    end,
 })
+
+--------------------------------------------------
 
 local ESPSettingsSection = ESPTab:CreateSection("ESP Settings")
 
@@ -178,8 +505,7 @@ local ESPRefreshRateSlider = ESPTab:CreateSlider({
    CurrentValue = 0.1,
    Flag = "ESPRefreshRate",
    Callback = function(Value)
-   -- Function: Refreshes the ESP system to check for new models, values, and more.
-   -- Put function code here
+      ESPCommands.SetRefreshRate(Value)
    end,
 })
 
@@ -187,9 +513,8 @@ local DisplayNameToggle = ESPTab:CreateToggle({
    Name = "Display Name",
    CurrentValue = true,
    Flag = "DisplayName",
-   Callback = function(value)
-   -- Function: Displays the name or first part of the billboard or not.
-   -- Put function code here
+   Callback = function(Value)
+      ESPCommands.SetDisplayName(Value)
    end,
 })
 
@@ -197,9 +522,8 @@ local DisplayHealthToggle = ESPTab:CreateToggle({
    Name = "Display Health",
    CurrentValue = true,
    Flag = "DisplayHealth",
-   Callback = function(value)
-   -- Function: Displays the health or not.
-   -- Put function code here
+   Callback = function(Value)
+      ESPCommands.SetDisplayHealth(Value)
    end,
 })
 
@@ -207,9 +531,8 @@ local DisplayGeneratorProgressToggle = ESPTab:CreateToggle({
    Name = "Display Generator Progress",
    CurrentValue = true,
    Flag = "DisplayGeneratorProgress",
-   Callback = function(value)
-   -- Function: Displays the generator progress or not.
-   -- Put function code here
+   Callback = function(Value)
+      ESPCommands.SetDisplayGeneratorProgress(Value)
    end,
 })
 
@@ -217,8 +540,7 @@ local DisplayDistanceToggle = ESPTab:CreateToggle({
    Name = "Display Distance",
    CurrentValue = true,
    Flag = "DisplayDistance",
-   Callback = function(value)
-   -- Function: Displays the distance or not.
-   -- Put function code here
+   Callback = function(Value)
+      ESPCommands.SetDisplayDistance(Value)
    end,
 })
