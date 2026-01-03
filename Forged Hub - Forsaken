@@ -38,19 +38,19 @@ local VisualTab = Window:CreateTab("Visual", "monitor-smartphone")
 local WelcomeLabel = WelcomeTab:CreateLabel("Welcome to Forged Hub!\nCurrent version: v1.0.0", "info")
 
 -- ESP TAB
--- SERVICES
+--// SERVICES
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
--- PLAYER
+--// PLAYER
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- STORAGE
+--// STATE
 local ESPObjects = {}
 local ESPEnabled = {}
 
--- SETTINGS
+--// SETTINGS
 local ESPSettings = {
     RefreshRate = 0.1,
     DisplayName = true,
@@ -59,284 +59,210 @@ local ESPSettings = {
     DisplayDistance = true,
 }
 
-local ESPHeartbeatConnection
+--------------------------------------------------
+--// UTILITIES
+--------------------------------------------------
 
---------------------------------------------------
--- UTILITIES
---------------------------------------------------
+local function GetRoot(Model)
+    return Model:FindFirstChild("HumanoidRootPart")
+        or Model.PrimaryPart
+        or Model:FindFirstChildWhichIsA("BasePart", true)
+end
 
 local function GetDistance(Part)
-    if not Part then return 0 end
     return math.floor((Camera.CFrame.Position - Part.Position).Magnitude)
 end
 
-local function ClearESP(Key)
-    if ESPObjects[Key] then
-        for _, Object in pairs(ESPObjects[Key]) do
-            if Object and Object.Parent then
-                Object:Destroy()
+local function CreateHighlight(Model, Name, Color)
+    local Highlight = Instance.new("Highlight")
+    Highlight.Name = Name
+    Highlight.FillColor = Color
+    Highlight.OutlineColor = Color
+    Highlight.FillTransparency = 0.6
+    Highlight.OutlineTransparency = 0
+    Highlight.Parent = Model
+    return Highlight
+end
+
+local function CreateBillboard(Root)
+    local Billboard = Instance.new("BillboardGui")
+    Billboard.Size = UDim2.fromOffset(220, 60)
+    Billboard.AlwaysOnTop = true
+    Billboard.StudsOffset = Vector3.new(0, 3, 0)
+    Billboard.Parent = Root
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.fromScale(1, 1)
+    Label.BackgroundTransparency = 1
+    Label.TextColor3 = Color3.new(1, 1, 1)
+    Label.TextStrokeTransparency = 0
+    Label.TextScaled = true
+    Label.Font = Enum.Font.SourceSansBold
+    Label.Parent = Billboard
+
+    return Billboard, Label
+end
+
+--------------------------------------------------
+--// GENERIC ESP ENGINE
+--------------------------------------------------
+
+local function UpdateESP(Key, Models, BuildText, GetColor)
+    ESPObjects[Key] = ESPObjects[Key] or {}
+
+    local Alive = {}
+
+    for _, Model in pairs(Models) do
+        local Root = GetRoot(Model)
+        if Root then
+            Alive[Model] = true
+            local Entry = ESPObjects[Key][Model]
+
+            if not Entry then
+                local Highlight = CreateHighlight(Model, Key .. "Highlight", GetColor(Model))
+                local Billboard, Label = CreateBillboard(Root)
+
+                ESPObjects[Key][Model] = {
+                    Highlight = Highlight,
+                    Billboard = Billboard,
+                    Label = Label
+                }
+
+                Entry = ESPObjects[Key][Model]
             end
+
+            local Color = GetColor(Model)
+            Entry.Highlight.FillColor = Color
+            Entry.Highlight.OutlineColor = Color
+            Entry.Label.Text = BuildText(Model, Root)
         end
-        ESPObjects[Key] = nil
+    end
+
+    for Model, Entry in pairs(ESPObjects[Key]) do
+        if not Alive[Model] then
+            Entry.Highlight:Destroy()
+            Entry.Billboard:Destroy()
+            ESPObjects[Key][Model] = nil
+        end
     end
 end
 
-local function CreateHighlight(Parent, Color)
-    local HighlightInstance = Instance.new("Highlight")
-    HighlightInstance.FillColor = Color
-    HighlightInstance.OutlineColor = Color
-    HighlightInstance.FillTransparency = 0.6
-    HighlightInstance.OutlineTransparency = 0
-    HighlightInstance.Parent = Parent
-    return HighlightInstance
-end
-
-local function CreateBillboard(Parent)
-    local Billboard = Instance.new("BillboardGui")
-    Billboard.Size = UDim2.fromScale(0, 0)
-    Billboard.AlwaysOnTop = true
-    Billboard.StudsOffset = Vector3.new(0, 3, 0)
-    Billboard.Parent = Parent
-
-    local TextLabel = Instance.new("TextLabel")
-    TextLabel.Size = UDim2.fromScale(1, 1)
-    TextLabel.BackgroundTransparency = 1
-    TextLabel.TextColor3 = Color3.new(1, 1, 1)
-    TextLabel.TextStrokeTransparency = 0
-    TextLabel.TextScaled = true
-    TextLabel.Font = Enum.Font.SourceSansBold
-    TextLabel.Parent = Billboard
-
-    return Billboard, TextLabel
-end
-
 --------------------------------------------------
--- ESP LOOP
+--// ESP COMMANDS
 --------------------------------------------------
-
-local function StartESPLoop()
-    if ESPHeartbeatConnection then return end
-
-    ESPHeartbeatConnection = RunService.Heartbeat:Connect(function()
-        task.wait(ESPSettings.RefreshRate)
-        for _, Update in pairs(ESPEnabled) do
-            Update()
-        end
-    end)
-end
 
 local ESPCommands = {}
 
---------------------------------------------------
--- KILLER / SURVIVOR SHARED
---------------------------------------------------
+-- KILLERS
+function ESPCommands.KillerESP()
+    local Models = workspace.Players.Killers:GetChildren()
 
-local function CharacterESP(Folder, Key, Color)
-    ClearESP(Key)
-    ESPObjects[Key] = {}
-
-    for _, Model in pairs(Folder:GetChildren()) do
-        if Model:GetAttribute("Username") ~= LocalPlayer.Name then
-            local Root = Model:FindFirstChild("HumanoidRootPart")
-            local Humanoid = Model:FindFirstChildOfClass("Humanoid")
-            if Root and Humanoid then
-                local Highlight = CreateHighlight(Model, Color)
-                local Billboard, Label = CreateBillboard(Root)
-
-                Label.Text = ""
-                if ESPSettings.DisplayName then
-                    Label.Text ..= Model.Name .. " (" .. Model:GetAttribute("Username") .. ")\n"
-                end
-                if ESPSettings.DisplayHealth then
-                    Label.Text ..= "Health: " .. math.floor(Humanoid.Health) .. "/" .. Humanoid.MaxHealth .. "\n"
-                end
-                if ESPSettings.DisplayDistance then
-                    Label.Text ..= GetDistance(Root) .. " studs away"
-                end
-
-                table.insert(ESPObjects[Key], Highlight)
-                table.insert(ESPObjects[Key], Billboard)
+    UpdateESP(
+        "KillerESP",
+        Models,
+        function(Model, Root)
+            if Model:GetAttribute("Username") == LocalPlayer.Name then
+                return ""
             end
+
+            local Humanoid = Model:FindFirstChildOfClass("Humanoid")
+            if not Humanoid then return "" end
+
+            local Text = ""
+            if ESPSettings.DisplayName then
+                Text ..= Model.Name .. " (" .. Model:GetAttribute("Username") .. ")\n"
+            end
+            if ESPSettings.DisplayHealth then
+                Text ..= "Health: " .. math.floor(Humanoid.Health) .. "/" .. Humanoid.MaxHealth .. "\n"
+            end
+            if ESPSettings.DisplayDistance then
+                Text ..= GetDistance(Root) .. " studs away"
+            end
+
+            return Text
+        end,
+        function()
+            return Color3.fromRGB(255, 255, 255)
+        end
+    )
+end
+
+-- SURVIVORS
+function ESPCommands.SurvivorESP()
+    local Models = workspace.Players.Survivors:GetChildren()
+
+    UpdateESP(
+        "SurvivorESP",
+        Models,
+        function(Model, Root)
+            if Model:GetAttribute("Username") == LocalPlayer.Name then
+                return ""
+            end
+
+            local Humanoid = Model:FindFirstChildOfClass("Humanoid")
+            if not Humanoid then return "" end
+
+            local Text = ""
+            if ESPSettings.DisplayName then
+                Text ..= Model.Name .. " (" .. Model:GetAttribute("Username") .. ")\n"
+            end
+            if ESPSettings.DisplayHealth then
+                Text ..= "Health: " .. math.floor(Humanoid.Health) .. "/" .. Humanoid.MaxHealth .. "\n"
+            end
+            if ESPSettings.DisplayDistance then
+                Text ..= GetDistance(Root) .. " studs away"
+            end
+
+            return Text
+        end,
+        function()
+            return Color3.fromRGB(0, 85, 127)
+        end
+    )
+end
+
+-- GENERATORS
+function ESPCommands.GeneratorESP()
+    local Models = {}
+
+    for _, Obj in pairs(workspace.Map.Ingame.Map:GetDescendants()) do
+        if Obj:IsA("Model") and (Obj.Name == "Generator" or Obj.Name == "FakeGenerator") then
+            table.insert(Models, Obj)
         end
     end
-end
 
-function ESPCommands.KillerESP(Value)
-    if not Value then ClearESP("KillerESP") return end
-    CharacterESP(workspace.Players.Killers, "KillerESP", Color3.fromRGB(255,255,255))
-end
-
-function ESPCommands.SurvivorESP(Value)
-    if not Value then ClearESP("SurvivorESP") return end
-    CharacterESP(workspace.Players.Survivors, "SurvivorESP", Color3.fromRGB(0,85,127))
-end
-
---------------------------------------------------
--- GENERATOR ESP
---------------------------------------------------
-
-function ESPCommands.GeneratorESP(Value)
-    ClearESP("GeneratorESP")
-    if not Value then return end
-
-    ESPObjects.GeneratorESP = {}
-
-    for _, Model in pairs(workspace.Map.Ingame.Map:GetDescendants()) do
-        if Model:IsA("Model") and (Model.Name == "Generator" or Model.Name == "FakeGenerator") then
-            local Root = Model.PrimaryPart or Model:FindFirstChildWhichIsA("BasePart")
+    UpdateESP(
+        "GeneratorESP",
+        Models,
+        function(Model, Root)
+            local Text = Model.Name
             local Progress = Model:FindFirstChild("Progress")
 
-            if Root then
-                local Color =
-                    Model.Name == "FakeGenerator" and Color3.fromRGB(85,0,127)
-                    or (Progress and Progress.Value >= 100 and Color3.fromRGB(85,255,0))
-                    or Color3.fromRGB(0,85,127)
-
-                local Highlight = CreateHighlight(Model, Color)
-                local Billboard, Label = CreateBillboard(Root)
-
-                Label.Text = Model.Name
-                if ESPSettings.DisplayGeneratorProgress and Progress then
-                    Label.Text ..= "\nProgress: " .. math.floor(Progress.Value) .. "%"
-                end
-                if ESPSettings.DisplayDistance then
-                    Label.Text ..= "\n" .. GetDistance(Root) .. " studs away"
-                end
-
-                table.insert(ESPObjects.GeneratorESP, Highlight)
-                table.insert(ESPObjects.GeneratorESP, Billboard)
+            if ESPSettings.DisplayGeneratorProgress and Progress then
+                Text ..= "\nProgress: " .. math.floor(Progress.Value) .. "%"
             end
-        end
-    end
-end
-
---------------------------------------------------
--- ITEM ESP
---------------------------------------------------
-
-function ESPCommands.ItemESP(Value)
-    ClearESP("ItemESP")
-    if not Value then return end
-
-    ESPObjects.ItemESP = {}
-
-    for _, Tool in pairs(workspace.Map.Ingame.Map:GetDescendants()) do
-        if Tool:IsA("Tool") then
-            local Handle = Tool:FindFirstChildWhichIsA("BasePart")
-            if Handle then
-                local Highlight = CreateHighlight(Tool, Color3.fromRGB(255,255,255))
-                local Billboard, Label = CreateBillboard(Handle)
-
-                Label.Text = Tool.Name
-                if ESPSettings.DisplayDistance then
-                    Label.Text ..= "\n" .. GetDistance(Handle) .. " studs away"
-                end
-
-                table.insert(ESPObjects.ItemESP, Highlight)
-                table.insert(ESPObjects.ItemESP, Billboard)
+            if ESPSettings.DisplayDistance then
+                Text ..= "\n" .. GetDistance(Root) .. " studs away"
             end
-        end
-    end
-end
 
---------------------------------------------------
--- SIMPLE HIGHLIGHT ESP
---------------------------------------------------
+            return Text
+        end,
+        function(Model)
+            local Progress = Model:FindFirstChild("Progress")
 
-local function SimpleHighlightESP(Value, Key, Names, Color)
-    ClearESP(Key)
-    if not Value then return end
-
-    ESPObjects[Key] = {}
-
-    for _, Model in pairs(workspace.Map.Ingame:GetDescendants()) do
-        if Model:IsA("Model") then
-            for _, Name in pairs(Names) do
-                if string.find(Model.Name, Name) then
-                    table.insert(ESPObjects[Key], CreateHighlight(Model, Color))
-                end
+            if Model.Name == "FakeGenerator" then
+                return Color3.fromRGB(85, 0, 127)
             end
-        end
-    end
-end
-
-function ESPCommands.BuildermanBuilds(Value)
-    SimpleHighlightESP(Value, "BuildermanBuilds", {"BuildermanSentry","BuildermanDispenser"}, Color3.fromRGB(255,255,0))
-end
-
-function ESPCommands.TaphTrapsESP(Value)
-    SimpleHighlightESP(Value, "TaphTrapsESP", {"SubspaceTripmine","TaphTripwire"}, Color3.fromRGB(255,0,255))
-end
-
---------------------------------------------------
--- MINIONS + BILLBOARD
---------------------------------------------------
-
-local function MinionESP(Value, Key, NameMatch, Color, LabelText)
-    ClearESP(Key)
-    if not Value then return end
-
-    ESPObjects[Key] = {}
-
-    for _, Model in pairs(workspace.Map.Ingame:GetDescendants()) do
-        if Model:IsA("Model") and string.find(Model.Name, NameMatch) then
-            local Root = Model.PrimaryPart or Model:FindFirstChildWhichIsA("BasePart")
-            if Root then
-                local Highlight = CreateHighlight(Model, Color)
-                local Billboard, Label = CreateBillboard(Root)
-
-                Label.Text = LabelText
-                if ESPSettings.DisplayDistance then
-                    Label.Text ..= "\n" .. GetDistance(Root) .. " studs away"
-                end
-
-                table.insert(ESPObjects[Key], Highlight)
-                table.insert(ESPObjects[Key], Billboard)
+            if Progress and Progress.Value >= 100 then
+                return Color3.fromRGB(85, 255, 0)
             end
+            return Color3.fromRGB(0, 85, 127)
         end
-    end
-end
-
-function ESPCommands.OneXMinionESP(Value)
-    MinionESP(Value, "1xMinion", "Zombie", Color3.fromRGB(0,170,0), "1x1x1x1 Minion")
-end
-
-function ESPCommands.C00lKiddMinionESP(Value)
-    MinionESP(Value, "c00lkiddMinion", "PizzaDeliveryRig", Color3.fromRGB(255,85,0), "c00lkidd Minion")
+    )
 end
 
 --------------------------------------------------
--- BILLBOARD ONLY
---------------------------------------------------
-
-local function BillboardOnlyESP(Value, Key, NameMatch, LabelText)
-    ClearESP(Key)
-    if not Value then return end
-
-    ESPObjects[Key] = {}
-
-    for _, Model in pairs(workspace.Map.Ingame:GetDescendants()) do
-        if Model:IsA("Model") and string.find(Model.Name, NameMatch) then
-            local Root = Model.PrimaryPart or Model:FindFirstChildWhichIsA("BasePart")
-            if Root then
-                local Billboard, Label = CreateBillboard(Root)
-                Label.Text = LabelText .. "\n" .. GetDistance(Root) .. " studs away"
-                table.insert(ESPObjects[Key], Billboard)
-            end
-        end
-    end
-end
-
-function ESPCommands.VeeronicaGraffitiESP(Value)
-    BillboardOnlyESP(Value, "VeeronicaGraffiti", "Spray", "Graffiti")
-end
-
-function ESPCommands.JohnDoeDigitalFootprintESP(Value)
-    BillboardOnlyESP(Value, "JohnDoeFootprint", "Shadow", "John Doe Digital Footprint")
-end
-
---------------------------------------------------
--- SETTINGS
+--// SETTINGS
 --------------------------------------------------
 
 function ESPCommands.SetRefreshRate(Value) ESPSettings.RefreshRate = Value end
@@ -344,6 +270,18 @@ function ESPCommands.SetDisplayName(Value) ESPSettings.DisplayName = Value end
 function ESPCommands.SetDisplayHealth(Value) ESPSettings.DisplayHealth = Value end
 function ESPCommands.SetDisplayGeneratorProgress(Value) ESPSettings.DisplayGeneratorProgress = Value end
 function ESPCommands.SetDisplayDistance(Value) ESPSettings.DisplayDistance = Value end
+
+--------------------------------------------------
+--// LOOP
+--------------------------------------------------
+
+RunService.Heartbeat:Connect(function()
+    task.wait(ESPSettings.RefreshRate)
+    for _, Update in pairs(ESPEnabled) do
+        Update()
+    end
+end)
+
 
 
 -- ESP TAB
