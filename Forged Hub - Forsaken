@@ -1,0 +1,40 @@
+-- BOOT RAYFIELD
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Forged Hub - Forsaken",
+   Icon = "anvil",
+   LoadingTitle = "Forged Hub",
+   LoadingSubtitle = "Loading...",
+   ShowText = "Forged Hub",
+   Theme = "DarkBlue",
+
+   ToggleUIKeybind = "K",
+
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false,
+
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "Forged Hub",
+      FileName = "ForgedHubForsaken"
+   },
+
+   Discord = {
+      Enabled = false,
+   },
+
+   KeySystem = false
+})
+
+-- TABS
+local WelcomeTab = Window:CreateTab("Welcome!", "hand")
+local PlayerTab = Window:CreateTab("Player", "person-standing")
+local ESPTab = Window:CreateTab("ESP", "eye")
+local AimbotTab = Window:CreateTab("Aimbot", "locate")
+local VisualTab = Window:CreateTab("Visual", "monitor-smartphone")
+
+-- WELCOME TAB
+local Label = Tab:CreateLabel("Welcome to Forged Hub!\nCurrent version: v1.0.0", "info")
+
+-- ESP TAB
