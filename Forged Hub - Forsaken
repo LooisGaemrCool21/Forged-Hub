@@ -35,6 +35,190 @@ local AimbotTab = Window:CreateTab("Aimbot", "locate")
 local VisualTab = Window:CreateTab("Visual", "monitor-smartphone")
 
 -- WELCOME TAB
-local Label = WelcomeTab:CreateLabel("Welcome to Forged Hub!\nCurrent version: v1.0.0", "info")
+local WelcomeLabel = WelcomeTab:CreateLabel("Welcome to Forged Hub!\nCurrent version: v1.0.0", "info")
 
 -- ESP TAB
+local MainESPSection = ESPTab:CreateSection("Main ESP")
+
+local KillerESPToggle = ESPTab:CreateToggle({
+   Name = "Killer ESP",
+   CurrentValue = false,
+   Flag = "KillerESP",
+   Callback = function(value)
+   -- Function: Adds an highlight and a billboard instance inside all models in the "Killers" folder which is located in the Workspace.Players.Killers.
+   -- Highlight Properties: Fill and Outline color - 255, 255, 255 | Fill Transparency - 0.6 | Outline Transparency - 0
+   -- Billboard properties (TextLabel above the model): Display - (Model name) ((Attribute value of "Username" of the model)) | Health: (Current health)/(Max health) | (Distance) studs away
+   -- It will only apply the highlight and billboard if the attribute value of "Username" of the model is not the user's roblox username.
+   -- Put function code here
+   end,
+})
+
+local SurvivorESPToggle = ESPTab:CreateToggle({
+   Name = "Survivor ESP",
+   CurrentValue = false,
+   Flag = "SurvivorESP",
+   Callback = function(value)
+   -- Function: Adds an highlight and a billboard instance inside all models in the "Survivors" folder which is located in the Workspace.Players.Survivors.
+   -- Highlight Properties: Fill and Outline color - 0, 85, 127 | Fill Transparency - 0.6 | Outline Transparency - 0
+   -- Billboard properties (TextLabel above the model): Display - (Model name) ((Attribute value of "Username" of the model)) | Health: (Current health)/(Max health) | (Distance) studs away
+   -- It will only apply the highlight and billboard if the attribute value of "Username" of the model is not the user's roblox username.
+   -- Put function code here
+   end,
+})
+
+local GeneratorESPToggle = ESPTab:CreateToggle({
+   Name = "Generator ESP",
+   CurrentValue = false,
+   Flag = "GeneratorESP",
+   Callback = function(value)
+   -- Function: Adds an highlight and a billboard instance inside all models that are named "Generator" and "FakeGenerator" in the "Map" model which is located in the Workspace.Map.Ingame.Map. You may realize there are two "Map"s, the first one is the folder and the second one is the model.
+   -- Highlight Properties: Fill and Outline color - 0, 85, 127 (For Generator when the number value of "Progress" inside the model is below 100), 85, 255, 0 (For Generator when the number value of "Progress" inside the model is 100), 85, 0, 127 (For FakeGenerator) | Fill Transparency - 0.6 | Outline Transparency - 0
+   -- Billboard properties (TextLabel above the model): Display - (Model name) | Progress: (Number value of Progress inside the model)% | (Distance) studs away
+   -- Put function code here
+   end,
+})
+
+local ItemESPToggle = ESPTab:CreateToggle({
+   Name = "Item ESP",
+   CurrentValue = false,
+   Flag = "ItemESP",
+   Callback = function(value)
+   -- Function: Adds an highlight and a billboard instance inside all Tools in the "Map" model which is located in Workspace.Map.Ingame.Map. You may realize there are two "Map"s, the first one is the folder and the second one is the model.
+   -- Highlight Properties: Fill and Outline color - 255, 255, 255 | Fill Transparency - 0.6 | Outline Transparency - 0
+   -- Billboard properties (TextLabel above the model): Display - (Model name) | (Distance) studs away
+   -- Put function code here
+   end,
+})
+
+local OtherESPSection = ESPTab:CreateSection("Other ESP")
+
+local BuildermanBuildsESPToggle = ESPTab:CreateToggle({
+   Name = "Builderman Builds",
+   CurrentValue = false,
+   Flag = "BuildermanBuilds",
+   Callback = function(value)
+   -- Function: Adds an highlight instance inside all models that are named "BuildermanSentry" and "BuildermanDispenser" in the "Ingame" folder which is located in the Workspace.Map.Ingame.
+   -- Highlight Properties: Fill and Outline color - 255, 255, 0 | Fill Transparency - 0.6 | Outline Transparency - 0
+   -- No billboard
+   -- Highlight will only apply when there is a model in the Killers folder that has the Roblox username in their attribute value called "Username"
+   -- Put function code here
+   end,
+})
+
+local TaphTrapsESPToggle = ESPTab:CreateToggle({
+   Name = "Taph Traps ESP",
+   CurrentValue = false,
+   Flag = "TaphTrapsESP",
+   Callback = function(value)
+   -- Function: Adds an highlight instance inside all models that are named "SubspaceTripmine" and "TaphTripwire" (It will still find models that has "TaphTripwire" on their names. Example: ExampleTaphTripwire) in the "Ingame" folder which is located in the Workspace.Map.Ingame.
+   -- Highlight Properties: Fill and Outline color - 255, 0, 255 | Fill Transparency - 0.6 | Outline Transparency - 0
+   -- No billboard
+   -- Highlight will only apply when there is a model in the Killers folder that has the Roblox username in their attribute value called "Username"
+   -- Put function code here
+   end,
+})
+
+local OnexOnexOnexOneMinionESPToggle = ESPTab:CreateToggle({
+   Name = "1x1x1x1 Minion ESP",
+   CurrentValue = false,
+   Flag = "1x1x1x1MinionESP",
+   Callback = function(value)
+   -- Function: Adds an highlight and a billboard instance inside all models that are named "Zombie" in the "Ingame" folder which is located in the Workspace.Map.Ingame.
+   -- Highlight Properties: Fill and Outline color - 0, 170, 0 | Fill Transparency - 0.6 | Outline Transparency - 0
+   -- Billboard properties (TextLabel above the model): Display - 1x1x1x1 Minion | (Distance) studs away
+   -- Highlight will only apply when there is a model in the Survivors folder that has the Roblox username in their attribute value called "Username"
+   -- Put function code here
+   end,
+})
+
+local c00lkiddMinionESPToggle = ESPTab:CreateToggle({
+   Name = "c00lkidd Minion ESP",
+   CurrentValue = false,
+   Flag = "c00lkiddMinionESP",
+   Callback = function(value)
+   -- Function: Adds an highlight and a billboard instance inside all models that are named "PizzaDeliveryRig" in the "Ingame" folder which is located in the Workspace.Map.Ingame.
+   -- Highlight Properties: Fill and Outline color - 255, 85, 0 | Fill Transparency - 0.6 | Outline Transparency - 0
+   -- Billboard properties (TextLabel above the model): Display - c00lkidd minion | (Distance) studs away
+   -- Highlight will only apply when there is a model in the Survivors folder that has the Roblox username in their attribute value called "Username"
+   -- Put function code here
+   end,
+})
+
+local VeeronicaGraffitiESPToggle = ESPTab:CreateToggle({
+   Name = "Veeronica Graffiti ESP",
+   CurrentValue = false,
+   Flag = "VeeronicaGraffitiESP",
+   Callback = function(value)
+   -- Function: Adds an billboard instance inside all models that are named "Spray" (It will still find models that has "Spray" on their names. Example: ExampleSpray) in the "Ingame" folder which is located in the Workspace.Map.Ingame.
+   -- No highlight
+   -- Billboard properties (TextLabel above the model): Display - Graffiti | (Distance) studs away
+   -- Put function code here
+   end,
+})
+
+local JohnDoeDigitalFootprintESPToggle = ESPTab:CreateToggle({
+   Name = "John Doe Digital Footprint ESP",
+   CurrentValue = false,
+   Flag = "JohnDoeDigitalFootprintESP",
+   Callback = function(value)
+   -- Function: Adds an billboard instance inside all models that are named "Shadow" in the "Shadows" (It will still find models that has "Shadows" on their names. Example: ExampleShadows. Also, there may be multiple folders with "Shadows" in their name!) folder which is located in the Workspace.Map.Ingame.Shadows
+   -- No highlight
+   -- Billboard properties (TextLabel above the model): Display - John Doe Digital Footprint | (Distance) studs away
+   -- Put function code here
+   end,
+})
+
+local ESPSettingsSection = ESPTab:CreateSection("ESP Settings")
+
+local ESPRefreshRateSlider = ESPTab:CreateSlider({
+   Name = "ESP Refresh Rate",
+   Range = {0.1, 1},
+   Increment = 0.05,
+   Suffix = "s",
+   CurrentValue = 0.1,
+   Flag = "ESPRefreshRate",
+   Callback = function(Value)
+   -- Function: Refreshes the ESP system to check for new models, values, and more.
+   -- Put function code here
+   end,
+})
+
+local DisplayNameToggle = ESPTab:CreateToggle({
+   Name = "Display Name",
+   CurrentValue = true,
+   Flag = "DisplayName",
+   Callback = function(value)
+   -- Function: Displays the name or first part of the billboard or not.
+   -- Put function code here
+   end,
+})
+
+local DisplayHealthToggle = ESPTab:CreateToggle({
+   Name = "Display Health",
+   CurrentValue = true,
+   Flag = "DisplayHealth",
+   Callback = function(value)
+   -- Function: Displays the health or not.
+   -- Put function code here
+   end,
+})
+
+local DisplayGeneratorProgressToggle = ESPTab:CreateToggle({
+   Name = "Display Generator Progress",
+   CurrentValue = true,
+   Flag = "DisplayGeneratorProgress",
+   Callback = function(value)
+   -- Function: Displays the generator progress or not.
+   -- Put function code here
+   end,
+})
+
+local DisplayDistanceToggle = ESPTab:CreateToggle({
+   Name = "Display Distance",
+   CurrentValue = true,
+   Flag = "DisplayDistance",
+   Callback = function(value)
+   -- Function: Displays the distance or not.
+   -- Put function code here
+   end,
+})
