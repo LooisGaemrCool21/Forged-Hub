@@ -35,6 +35,6 @@ local AimbotTab = Window:CreateTab("Aimbot", "locate")
 local VisualTab = Window:CreateTab("Visual", "monitor-smartphone")
 
 -- WELCOME TAB
-local Label = Tab:CreateLabel("Welcome to Forged Hub!\nCurrent version: v1.0.0", "info")
+local Label = WelcomeTab:CreateLabel("Welcome to Forged Hub!\nCurrent version: v1.0.0", "info")
 
 -- ESP TAB
